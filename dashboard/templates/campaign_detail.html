@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% block title %}Campaign Details - {{ campaign.campaign_name }}{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0 max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center mb-4">
+            <a href="/campaigns" class="text-gray-500 hover:text-gray-700 mr-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+            </a>
+            <h1 class="text-3xl font-bold text-gray-900">{{ campaign.campaign_name }}</h1>
+        </div>
+        <div class="ml-10 flex items-center space-x-4">
+            {% if campaign.status == 'completed' %}
+            <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                ✓ Completed
+            </span>
+            {% elif campaign.status == 'running' %}
+            <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                ⏳ Running
+            </span>
+            {% elif campaign.status == 'failed' %}
+            <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                ✗ Failed
+            </span>
+            {% elif campaign.status == 'pending' %}
+            <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                ⏸ Pending
+            </span>
+            {% endif %}
+            
+            <!-- Resend Button -->
+            {% if campaign.status == 'completed' or campaign.status == 'failed' %}
+            <button type="button" onclick="showResendModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors inline-flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Resend Campaign
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Campaign Information -->
+    <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Campaign Information</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <dl class="space-y-4">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Subject</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.subject or 'N/A' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Total Recipients</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.total_recipients }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Created</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    </div>
+                    {% if campaign.started_at %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Started</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.started_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+            <div>
+                <dl class="space-y-4">
+                    {% if campaign.email_account %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">From Email</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.email_account.from_email }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">From Name</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.email_account.from_name }}</dd>
+                    </div>
+                    {% endif %}
+                    {% if campaign.smtp_config %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">SMTP Server</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.smtp_config.name }} ({{ campaign.smtp_config.host }}:{{ campaign.smtp_config.port }})</dd>
+                    </div>
+                    {% endif %}
+                    {% if campaign.completed_at %}
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Completed</dt>
+                        <dd class="mt-1 text-sm text-gray-900">{{ campaign.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}</dd>
+                    </div>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Progress (shown/hidden by JavaScript based on status) -->
+    <div id="progress-section" class="bg-white shadow-lg rounded-lg p-6 mb-6 border-l-4 border-blue-500" style="display: {% if campaign.status == 'running' %}block{% else %}none{% endif %};">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">📊 Sending Progress</h2>
+        
+        <!-- Progress Bar -->
+        <div class="mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700">Progress</span>
+                <span id="progress-percent" class="text-sm font-medium text-gray-700">0%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                <div id="progress-bar" class="h-4 rounded-full transition-all duration-500 bg-blue-600" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <!-- Current Status -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div class="text-sm font-medium text-blue-900 mb-1">Currently Sending</div>
+                <div id="current-email" class="text-lg font-semibold text-blue-700">-</div>
+            </div>
+            <div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="text-sm font-medium text-gray-900 mb-1">Remaining</div>
+                <div id="remaining-count" class="text-lg font-semibold text-gray-700">{{ campaign.total_recipients - campaign.sent_count - campaign.failed_count }}</div>
+            </div>
+        </div>
+        
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="text-center">
+                <div id="stat-sent" class="text-2xl font-bold text-blue-600">{{ stats.sent }}</div>
+                <div class="text-xs text-gray-600 mt-1">Sent</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-failed" class="text-2xl font-bold text-red-600">{{ stats.failed }}</div>
+                <div class="text-xs text-gray-600 mt-1">Failed</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-delivered" class="text-2xl font-bold text-green-600">{{ stats.delivered }}</div>
+                <div class="text-xs text-gray-600 mt-1">Delivered</div>
+            </div>
+            <div class="text-center">
+                <div id="stat-total" class="text-2xl font-bold text-gray-900">{{ campaign.total_recipients }}</div>
+                <div class="text-xs text-gray-600 mt-1">Total</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
+            <div id="stat-card-sent" class="text-3xl font-bold text-gray-900">{{ stats.sent }}</div>
+            <div class="text-sm text-gray-600 mt-1">Sent</div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
+            <div id="stat-card-delivered" class="text-3xl font-bold text-gray-900">{{ stats.delivered }}</div>
+            <div class="text-sm text-gray-600 mt-1">Delivered</div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500">
+            <div id="stat-card-failed" class="text-3xl font-bold text-gray-900">{{ stats.failed }}</div>
+            <div class="text-sm text-gray-600 mt-1">Failed</div>
+        </div>
+        <div class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
+            <div id="stat-card-bounced" class="text-3xl font-bold text-gray-900">{{ stats.bounced }}</div>
+            <div class="text-sm text-gray-600 mt-1">Bounced</div>
+        </div>
+    </div>
+
+    <!-- Email Body Preview -->
+    {% if campaign.body_html %}
+    <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Email Preview</h2>
+        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <div class="mb-2 text-sm text-gray-600">
+                <strong>Subject:</strong> {{ campaign.subject }}
+            </div>
+            <div class="border-t border-gray-200 pt-4">
+                <div class="prose max-w-none">
+                    {{ campaign.body_html|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Delivery Records -->
+    <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Delivery Records ({{ total_deliveries }})</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipient</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent At</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Error</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for delivery in deliveries %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ delivery.recipient_email }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if delivery.status == 'sent' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                                Sent
+                            </span>
+                            {% elif delivery.status == 'delivered' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                Delivered
+                            </span>
+                            {% elif delivery.status == 'failed' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                Failed
+                            </span>
+                            {% elif delivery.status == 'bounced' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                Bounced
+                            </span>
+                            {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                {{ delivery.status }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {% if delivery.sent_at %}
+                            {{ delivery.sent_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {% if delivery.error_message %}
+                            <span class="text-red-600" title="{{ delivery.error_message }}">{{ delivery.error_message[:50] }}{% if delivery.error_message|length > 50 %}...{% endif %}</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-500">
+                            No delivery records found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if total_deliveries > per_page %}
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
+            <div class="text-sm text-gray-700">
+                Showing {{ (page - 1) * per_page + 1 }} to {% if page * per_page > total_deliveries %}{{ total_deliveries }}{% else %}{{ page * per_page }}{% endif %} of {{ total_deliveries }} records
+            </div>
+            <div class="flex space-x-2">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </a>
+                {% endif %}
+                {% if page * per_page < total_deliveries %}
+                <a href="?page={{ page + 1 }}" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resend Campaign Modal -->
+<div id="resend-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold text-gray-900">Resend Campaign</h3>
+            <button onclick="closeResendModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <form id="resend-form" method="POST" action="/campaigns/{{ campaign.id }}/resend">
+            <div class="space-y-4">
+                <div>
+                    <label for="resend-smtp-config" class="block text-sm font-medium text-gray-700 mb-2">
+                        SMTP Server <span class="text-red-500">*</span>
+                    </label>
+                    <select id="resend-smtp-config" name="smtp_config_id" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">-- Select SMTP Configuration --</option>
+                        {% for smtp_config in smtp_configs %}
+                        <option value="{{ smtp_config.id }}" {% if campaign.smtp_config_id == smtp_config.id %}selected{% endif %}>
+                            {{ smtp_config.name }} ({{ smtp_config.host }}:{{ smtp_config.port }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if smtp_configs|length == 0 %}
+                    <p class="mt-1 text-xs text-red-500">No SMTP configurations found. <a href="/smtp-configs" class="underline">Add one first</a></p>
+                    {% else %}
+                    <p class="mt-1 text-xs text-gray-500">Select the SMTP server to use for resending</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="resend-email-account" class="block text-sm font-medium text-gray-700 mb-2">
+                        From Email Account <span class="text-red-500">*</span>
+                    </label>
+                    <select id="resend-email-account" name="email_account_id" required
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">-- Select Email Account --</option>
+                        {% for email_account in email_accounts %}
+                        <option value="{{ email_account.id }}" data-smtp="{{ email_account.smtp_config_id }}" {% if campaign.email_account_id == email_account.id %}selected{% endif %}>
+                            {{ email_account.name }} ({{ email_account.from_email }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if email_accounts|length == 0 %}
+                    <p class="mt-1 text-xs text-red-500">No email accounts found. <a href="/email-accounts" class="underline">Add one first</a></p>
+                    {% else %}
+                    <p class="mt-1 text-xs text-gray-500">The email address and name recipients will see</p>
+                    {% endif %}
+                </div>
+                
+                <div>
+                    <label for="resend-delay" class="block text-sm font-medium text-gray-700 mb-2">
+                        Delay Between Emails (seconds) <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" id="resend-delay" name="delay_seconds" min="0" step="0.1" value="{{ campaign.delay_seconds or 20.0 }}" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           placeholder="e.g., 20.0">
+                    <p class="mt-1 text-xs text-gray-500">Time to wait between sending each email (in seconds)</p>
+                </div>
+                
+                <div class="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div class="flex">
+                        <svg class="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-blue-700">
+                            <strong>Note:</strong> This will create a new campaign and resend to all original recipients ({{ campaign.total_recipients }} emails). 
+                            The campaign will use the selected SMTP configuration and email account.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-4 mt-6">
+                <button type="button" onclick="closeResendModal()" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 font-medium">
+                    Cancel
+                </button>
+                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    Resend Campaign
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Resend modal functions (must be global for onclick handlers)
+function showResendModal() {
+    const modal = document.getElementById('resend-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Stop auto-refresh when modal is open
+        if (window.pollInterval) {
+            clearInterval(window.pollInterval);
+            window.pollInterval = null;
+        }
+        // Also stop local pollInterval if it exists
+        if (typeof pollInterval !== 'undefined' && pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+}
+
+function closeResendModal() {
+    const modal = document.getElementById('resend-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Resume polling if campaign is still running (will be handled by existing polling logic)
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const campaignId = {{ campaign.id }};
+    const initialStatus = '{{ campaign.status }}';
+    let pollInterval = null;
+
+    function updateCampaignStatus() {
+        fetch(`/api/campaigns/${campaignId}/status`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+                
+                console.log('Campaign status update:', data); // Debug log
+                
+                // Ensure progress section is visible when running
+                if (data.status === 'running') {
+                    const progressSection = document.getElementById('progress-section');
+                    if (progressSection) {
+                        progressSection.style.display = 'block';
+                    }
+                }
+                
+                // Update progress bar
+                const progressBar = document.getElementById('progress-bar');
+                const progressPercent = document.getElementById('progress-percent');
+                if (progressBar && progressPercent) {
+                    progressBar.style.width = data.progress + '%';
+                    progressPercent.textContent = data.progress.toFixed(1) + '%';
+                }
+                
+                // Update current email
+                const currentEmailEl = document.getElementById('current-email');
+                if (currentEmailEl) {
+                    currentEmailEl.textContent = data.current_email || 'Starting...';
+                }
+                
+                // Update remaining count
+                const remainingEl = document.getElementById('remaining-count');
+                if (remainingEl) {
+                    remainingEl.textContent = data.remaining;
+                }
+                
+                // Update stats in progress section
+                const statSent = document.getElementById('stat-sent');
+                const statFailed = document.getElementById('stat-failed');
+                const statDelivered = document.getElementById('stat-delivered');
+                const statTotal = document.getElementById('stat-total');
+                
+                if (statSent) statSent.textContent = data.sent;
+                if (statFailed) statFailed.textContent = data.failed;
+                if (statDelivered) statDelivered.textContent = data.delivered || 0;
+                if (statTotal) statTotal.textContent = data.total;
+                
+                // Update stat cards
+                const cardSent = document.getElementById('stat-card-sent');
+                const cardFailed = document.getElementById('stat-card-failed');
+                const cardDelivered = document.getElementById('stat-card-delivered');
+                const cardBounced = document.getElementById('stat-card-bounced');
+                
+                if (cardSent) cardSent.textContent = data.sent;
+                if (cardFailed) cardFailed.textContent = data.failed;
+                if (cardDelivered) cardDelivered.textContent = data.delivered || 0;
+                
+                // Show/hide progress section based on status
+                const progressSection = document.getElementById('progress-section');
+                if (progressSection) {
+                    if (data.status === 'running') {
+                        progressSection.style.display = 'block';
+                    } else {
+                        progressSection.style.display = 'none';
+                    }
+                }
+                
+                // Update status badge if it changed
+                const statusBadge = document.querySelector('.ml-10 span');
+                if (statusBadge) {
+                    if (data.status === 'completed') {
+                        statusBadge.className = 'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800';
+                        statusBadge.textContent = '✓ Completed';
+                    } else if (data.status === 'failed') {
+                        statusBadge.className = 'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800';
+                        statusBadge.textContent = '✗ Failed';
+                    } else if (data.status === 'running') {
+                        statusBadge.className = 'px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800';
+                        statusBadge.textContent = '⏳ Running';
+                    }
+                }
+                
+                // Check if campaign is completed or failed
+                if (data.status === 'completed' || data.status === 'failed') {
+                    stopPolling();
+                    // Only reload if modal is not open
+                    const resendModal = document.getElementById('resend-modal');
+                    const isModalOpen = resendModal && !resendModal.classList.contains('hidden');
+                    
+                    if (!isModalOpen) {
+                        // Reload page after 2 seconds to show final state
+                        setTimeout(() => {
+                            // Double-check modal is still closed before reloading
+                            const modalCheck = document.getElementById('resend-modal');
+                            if (!modalCheck || modalCheck.classList.contains('hidden')) {
+                                window.location.reload();
+                            }
+                        }, 2000);
+                    }
+                } else if (data.status === 'running' && !pollInterval) {
+                    // Start polling if campaign just started running
+                    startPolling();
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching campaign status:', error);
+            });
+    }
+
+    function startPolling() {
+        // Don't start polling if modal is open
+        const resendModal = document.getElementById('resend-modal');
+        const isModalOpen = resendModal && !resendModal.classList.contains('hidden');
+        if (isModalOpen) {
+            return;
+        }
+        
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+        pollInterval = setInterval(updateCampaignStatus, 2000); // Poll every 2 seconds
+        window.pollInterval = pollInterval; // Store globally for modal functions
+        updateCampaignStatus(); // Initial update immediately
+    }
+
+    function stopPolling() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+        }
+    }
+
+    // Always start polling to check for status changes
+    // This ensures we catch when a pending campaign starts running
+    startPolling();
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+        stopPolling();
+    });
+    
+    // Close modal when clicking outside
+    const resendModal = document.getElementById('resend-modal');
+    if (resendModal) {
+        resendModal.addEventListener('click', function(e) {
+            if (e.target === resendModal) {
+                closeResendModal();
+            }
+        });
+    }
+    
+    // Validate SMTP and Email account match
+    const resendSmtpSelect = document.getElementById('resend-smtp-config');
+    const resendEmailSelect = document.getElementById('resend-email-account');
+    
+    if (resendSmtpSelect && resendEmailSelect) {
+        resendEmailSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const emailSmtpId = selectedOption.getAttribute('data-smtp');
+            const selectedSmtpId = resendSmtpSelect.value;
+            
+            if (emailSmtpId && selectedSmtpId && emailSmtpId !== selectedSmtpId) {
+                alert('Warning: The selected email account uses a different SMTP configuration. Please ensure they match.');
+            }
+        });
+        
+        resendSmtpSelect.addEventListener('change', function() {
+            const selectedSmtpId = this.value;
+            // Filter email accounts to show only those matching the selected SMTP
+            Array.from(resendEmailSelect.options).forEach(option => {
+                if (option.value === '') return; // Keep the default option
+                const emailSmtpId = option.getAttribute('data-smtp');
+                if (selectedSmtpId && emailSmtpId && emailSmtpId !== selectedSmtpId) {
+                    option.style.display = 'none';
+                } else {
+                    option.style.display = 'block';
+                }
+            });
+        });
+    }
+    
+    // Form submission validation
+    const resendForm = document.getElementById('resend-form');
+    if (resendForm) {
+        resendForm.addEventListener('submit', function(e) {
+            const smtpConfigId = resendSmtpSelect ? resendSmtpSelect.value : '';
+            const emailAccountId = resendEmailSelect ? resendEmailSelect.value : '';
+            
+            if (!smtpConfigId || smtpConfigId === '' || !emailAccountId || emailAccountId === '') {
+                e.preventDefault();
+                alert('Please select both SMTP Configuration and Email Account');
+                return false;
+            }
+            
+            if (!confirm('Are you sure you want to resend this campaign to all original recipients?')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

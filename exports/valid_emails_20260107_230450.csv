@@ -1,0 +1,5 @@
+email,domain,has_mx_record,has_a_record,smtp_valid,is_catch_all,domain_age_days,validated_at
+info@arvingoods.com,arvingoods.com,True,True,True,False,,2026-01-06 22:43:49
+ella@ellasher.com,ellasher.com,True,True,False,False,,2026-01-06 22:44:03
+info@arvinmaleki.com,arvinmaleki.com,True,True,False,False,,2026-01-06 22:44:20
+info@thebentagency.com,thebentagency.com,True,True,True,False,,2026-01-06 22:44:31

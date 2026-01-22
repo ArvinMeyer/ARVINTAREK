@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}Valid Emails - Email Extraction System{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <!-- Campaign Mode Banner -->
+    {% if select_mode and return_to == 'campaign' %}
+    <div class="mb-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <h3 class="text-sm font-semibold text-blue-800">Campaign Mode</h3>
+                    <p class="text-xs text-blue-700 mt-1">Select recipients for your campaign. Campaign details are saved and will be used when you send.</p>
+                </div>
+            </div>
+            <a href="/campaigns/new" class="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-md hover:bg-blue-200">
+                Back to Campaign
+            </a>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Statistics Cards -->
+    {% if stats %}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Total Valid</div>
+            <div class="text-2xl font-bold text-green-600">{{ stats.total }}</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">With MX Record</div>
+            <div class="text-2xl font-bold text-blue-600">{{ stats.with_mx }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.mx_rate }}%</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">SMTP Valid</div>
+            <div class="text-2xl font-bold text-purple-600">{{ stats.with_smtp }}</div>
+            <div class="text-xs text-gray-500 mt-1">{{ stats.smtp_rate }}%</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Export Ready</div>
+            <div class="text-2xl font-bold text-indigo-600">{{ stats.total }}</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">Valid Emails ({{ total }})</h2>
+            <div class="flex space-x-2">
+                <a href="/emails/all"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    ← All Emails
+                </a>
+                <a href="/emails/export"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                    📥 Export to CSV
+                </a>
+            </div>
+        </div>
+
+        <!-- Batch Action Buttons -->
+        <div class="mb-4 flex space-x-2">
+            <button id="select-all-btn" 
+                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                Select All
+            </button>
+            <button id="send-batch-btn" 
+                    class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    disabled>
+                📧 Send to Selected (<span id="selected-count">0</span>)
+            </button>
+            <button id="resubscribe-batch-btn" 
+                    class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    disabled>
+                ↻ Re-subscribe Selected (<span id="unsubscribed-count">0</span>)
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <input type="checkbox" id="select-all" class="rounded border-gray-300">
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Domain</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MX
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">A
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMTP
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Catch-All</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Subscribed</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Validated</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for email in emails %}
+                    <tr class="{% if not email.subscribed %}opacity-50{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <input type="checkbox" class="email-checkbox rounded border-gray-300" 
+                                   value="{{ email.email }}" 
+                                   data-email-id="{{ email.id }}"
+                                   {% if not email.subscribed %}title="Unsubscribed - can be re-subscribed"{% endif %}>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ email.email }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ email.domain }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">{% if email.has_mx_record %}✅{% else %}❌{% endif
+                            %}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">{% if email.has_a_record %}✅{% else %}❌{% endif
+                            %}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">{% if email.smtp_valid %}✅{% else %}❌{% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">{% if email.is_catch_all %}⚠️{% else %}✅{% endif
+                            %}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            {% if email.subscribed %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Subscribed</span>
+                            {% else %}
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Unsubscribed</span>
+                                    <button onclick="resubscribeEmail('{{ email.email }}', {{ email.id }})" 
+                                            class="px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                            title="Re-subscribe this email">
+                                        ↻ Re-subscribe
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{
+                            email.validated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total > per_page %}
+        <div class="mt-6 flex justify-between items-center">
+            <div class="text-sm text-gray-700">
+                Showing {{ (page - 1) * per_page + 1 }} to {% if page * per_page > total %}{{ total }}{% else %}{{ page * per_page }}{% endif %} of {{ total }} results
+            </div>
+            <div class="flex space-x-2">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}"
+                    class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </a>
+                {% endif %}
+                {% if page * per_page < total %} <a href="?page={{ page + 1 }}"
+                    class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                    </a>
+                    {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Email Composition Modal -->
+<div id="email-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold">Compose Email</h3>
+            <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <form id="email-form">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Configuration *</label>
+                <select id="smtp-config-id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select SMTP Configuration --</option>
+                    {% for smtp_config in smtp_configs %}
+                    <option value="{{ smtp_config.id }}">{{ smtp_config.name }} ({{ smtp_config.host }}:{{ smtp_config.port }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="/smtp-configs" class="text-blue-600 hover:underline">Manage SMTP configurations</a>
+                </p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">From Email Account *</label>
+                <select id="email-account-id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Email Account --</option>
+                    {% for email_account in email_accounts %}
+                    <option value="{{ email_account.id }}">{{ email_account.name }} ({{ email_account.from_email }})</option>
+                    {% endfor %}
+                </select>
+                {% if select_mode and return_to == 'campaign' %}
+                <p class="text-xs text-blue-600 mt-1">💡 Campaign mode: Will use campaign email account</p>
+                {% else %}
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="/email-accounts" class="text-blue-600 hover:underline">Manage email accounts</a>
+                </p>
+                {% endif %}
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Subject *</label>
+                <input type="text" id="email-subject" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       {% if select_mode and return_to == 'campaign' %}placeholder="Will be filled from campaign"{% endif %}>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Body (HTML) *</label>
+                <textarea id="email-body" rows="12" required
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter your email content in HTML format. An unsubscribe link will be automatically added at the bottom."></textarea>
+                <p class="text-xs text-gray-500 mt-1">HTML format supported. Unsubscribe link will be added automatically.</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Plain Text (Optional)</label>
+                <textarea id="email-body-text" rows="6"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Optional plain text version"></textarea>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="cancel-btn"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit" id="send-btn"
+                        class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Send to <span id="send-count">0</span> Recipients
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Check for campaign draft and pre-populate form if in campaign mode
+    {% if select_mode and return_to == 'campaign' %}
+    const campaignDraft = sessionStorage.getItem('campaign_draft');
+    if (campaignDraft) {
+        try {
+            const campaignData = JSON.parse(campaignDraft);
+            // Pre-populate the email composition modal
+            const subjectField = document.getElementById('email-subject');
+            const bodyField = document.getElementById('email-body');
+            const bodyTextField = document.getElementById('email-body-text');
+            const smtpSelect = document.getElementById('smtp-config-id');
+            const emailSelect = document.getElementById('email-account-id');
+            
+            if (subjectField && campaignData.subject) subjectField.value = campaignData.subject;
+            if (bodyField && campaignData.body_html) bodyField.value = campaignData.body_html;
+            if (bodyTextField && campaignData.body_text) bodyTextField.value = campaignData.body_text;
+            if (smtpSelect && campaignData.smtp_config_id) smtpSelect.value = campaignData.smtp_config_id;
+            if (emailSelect && campaignData.email_account_id) emailSelect.value = campaignData.email_account_id;
+        } catch (e) {
+            console.error('Error loading campaign draft:', e);
+        }
+    }
+    {% endif %}
+    
+    const selectAllCheckbox = document.getElementById('select-all');
+    const emailCheckboxes = document.querySelectorAll('.email-checkbox');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const sendBatchBtn = document.getElementById('send-batch-btn');
+    const resubscribeBatchBtn = document.getElementById('resubscribe-batch-btn');
+    const selectedCount = document.getElementById('selected-count');
+    const unsubscribedCount = document.getElementById('unsubscribed-count');
+    const emailModal = document.getElementById('email-modal');
+    const emailForm = document.getElementById('email-form');
+    const cancelBtn = document.getElementById('cancel-btn');
+    const closeModal = document.getElementById('close-modal');
+    const sendCount = document.getElementById('send-count');
+    
+    let selectedEmails = [];
+    let unsubscribedEmails = [];
+    
+    // Store email subscription status
+    const emailStatus = {};
+    emailCheckboxes.forEach(cb => {
+        const row = cb.closest('tr');
+        const subscribedBadge = row.querySelector('.bg-green-100, .bg-red-100');
+        emailStatus[cb.value] = subscribedBadge && subscribedBadge.classList.contains('bg-green-100');
+    });
+    
+    function updateSelectedCount() {
+        selectedEmails = Array.from(emailCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        // Get unsubscribed emails from selected
+        unsubscribedEmails = selectedEmails.filter(email => !emailStatus[email]);
+        
+        selectedCount.textContent = selectedEmails.length;
+        unsubscribedCount.textContent = unsubscribedEmails.length;
+        sendCount.textContent = selectedEmails.length;
+        sendBatchBtn.disabled = selectedEmails.length === 0;
+        resubscribeBatchBtn.disabled = unsubscribedEmails.length === 0;
+    }
+    
+    // Individual re-subscribe function
+    window.resubscribeEmail = function(email, emailId) {
+        if (!confirm(`Re-subscribe ${email}?`)) return;
+        
+        fetch('/emails/valid/resubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: [email], email_ids: [emailId] })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Successfully re-subscribed ${email}`);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+    };
+    
+    // Batch re-subscribe
+    resubscribeBatchBtn.addEventListener('click', function() {
+        if (unsubscribedEmails.length === 0) {
+            alert('No unsubscribed emails selected');
+            return;
+        }
+        
+        if (!confirm(`Re-subscribe ${unsubscribedEmails.length} unsubscribed email(s)?`)) return;
+        
+        // Get email IDs for selected unsubscribed emails
+        const emailIds = Array.from(emailCheckboxes)
+            .filter(cb => cb.checked && unsubscribedEmails.includes(cb.value))
+            .map(cb => {
+                const emailId = cb.dataset.emailId;
+                return emailId ? parseInt(emailId) : null;
+            })
+            .filter(id => id !== null);
+        
+        resubscribeBatchBtn.disabled = true;
+        resubscribeBatchBtn.textContent = 'Re-subscribing...';
+        
+        fetch('/emails/valid/resubscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emails: unsubscribedEmails, email_ids: emailIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Successfully re-subscribed ${data.count || unsubscribedEmails.length} email(s)`);
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+                resubscribeBatchBtn.disabled = false;
+                resubscribeBatchBtn.textContent = `↻ Re-subscribe Selected (${unsubscribedEmails.length})`;
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+            resubscribeBatchBtn.disabled = false;
+            resubscribeBatchBtn.textContent = `↻ Re-subscribe Selected (${unsubscribedEmails.length})`;
+        });
+    });
+    
+    selectAllCheckbox.addEventListener('change', function() {
+        emailCheckboxes.forEach(cb => {
+            cb.checked = selectAllCheckbox.checked;
+        });
+        updateSelectedCount();
+    });
+    
+    emailCheckboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            updateSelectedCount();
+            // Update select all checkbox state
+            const allChecked = Array.from(emailCheckboxes)
+                .every(c => c.checked);
+            selectAllCheckbox.checked = allChecked;
+        });
+    });
+    
+    selectAllBtn.addEventListener('click', function() {
+        const allChecked = Array.from(emailCheckboxes)
+            .filter(c => !c.disabled)
+            .every(c => c.checked);
+        selectAllCheckbox.checked = !allChecked;
+        selectAllCheckbox.dispatchEvent(new Event('change'));
+    });
+    
+    sendBatchBtn.addEventListener('click', function() {
+        if (selectedEmails.length > 0) {
+            emailModal.classList.remove('hidden');
+        }
+    });
+    
+    function closeModalFunc() {
+        emailModal.classList.add('hidden');
+    }
+    
+    cancelBtn.addEventListener('click', closeModalFunc);
+    closeModal.addEventListener('click', closeModalFunc);
+    
+    // Close modal when clicking outside
+    emailModal.addEventListener('click', function(e) {
+        if (e.target === emailModal) {
+            closeModalFunc();
+        }
+    });
+    
+    emailForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Check if we have campaign data from sessionStorage
+        const campaignDraft = sessionStorage.getItem('campaign_draft');
+        let campaignData = null;
+        let useCampaignData = false;
+        
+        if (campaignDraft) {
+            try {
+                campaignData = JSON.parse(campaignDraft);
+                // In campaign mode, use campaign data automatically
+                {% if select_mode and return_to == 'campaign' %}
+                useCampaignData = true;
+                {% else %}
+                useCampaignData = confirm('Use saved campaign details (subject, body, SMTP, email account)?');
+                {% endif %}
+            } catch (e) {
+                console.error('Error parsing campaign draft:', e);
+            }
+        }
+        
+        // Use campaign data if available, otherwise use form values
+        const subject = useCampaignData && campaignData ? campaignData.subject : document.getElementById('email-subject').value;
+        const body = useCampaignData && campaignData ? campaignData.body_html : document.getElementById('email-body').value;
+        const bodyText = useCampaignData && campaignData ? (campaignData.body_text || body.replace(/<[^>]*>/g, '')) : (document.getElementById('email-body-text').value || body.replace(/<[^>]*>/g, ''));
+        const smtpConfigId = useCampaignData && campaignData ? campaignData.smtp_config_id : document.getElementById('smtp-config-id').value;
+        const emailAccountId = useCampaignData && campaignData ? campaignData.email_account_id : document.getElementById('email-account-id').value;
+        const campaignName = useCampaignData && campaignData ? campaignData.name : null;
+        
+        if (!subject || !body) {
+            alert('Please fill in subject and body');
+            return;
+        }
+        
+        if (!smtpConfigId || !emailAccountId) {
+            alert('Please select both SMTP Configuration and Email Account');
+            return;
+        }
+        
+        // Disable send button
+        const sendBtn = document.getElementById('send-btn');
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        
+        fetch('/sender/batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                emails: selectedEmails,
+                subject: subject,
+                body_html: body,
+                body_text: bodyText,
+                smtp_config_id: parseInt(smtpConfigId),
+                email_account_id: parseInt(emailAccountId),
+                campaign_name: campaignName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Clear campaign draft if used
+                if (useCampaignData && campaignData) {
+                    sessionStorage.removeItem('campaign_draft');
+                }
+                
+                alert('Emails queued for sending! They will be sent one by one.');
+                closeModalFunc();
+                
+                // Redirect back to campaign if in campaign mode
+                {% if select_mode and return_to == 'campaign' %}
+                if (data.campaign_id) {
+                    window.location.href = '/campaigns/' + data.campaign_id;
+                } else {
+                    window.location.href = '/campaigns';
+                }
+                {% else %}
+                // Reset form
+                emailForm.reset();
+                // Uncheck all
+                emailCheckboxes.forEach(cb => cb.checked = false);
+                selectAllCheckbox.checked = false;
+                updateSelectedCount();
+                {% endif %}
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+                sendBtn.disabled = false;
+                sendBtn.textContent = 'Send to ' + selectedEmails.length + ' Recipients';
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        })
+        .finally(() => {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send to ' + selectedEmails.length + ' Recipients';
+        });
+    });
+    
+    // Initialize
+    updateSelectedCount();
+});
+</script>
+{% endblock %}

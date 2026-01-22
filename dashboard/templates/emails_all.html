@@ -1,0 +1,648 @@
+{% extends "base.html" %}
+
+{% block title %}All Emails - Email Extraction System{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Total Emails</div>
+            <div class="text-2xl font-bold text-gray-900">{{ stats.total }}</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Not Validated</div>
+            <div class="text-2xl font-bold text-yellow-600">{{ stats.not_validated }}</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Validated</div>
+            <div class="text-2xl font-bold text-blue-600">{{ stats.validated }}</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Valid</div>
+            <div class="text-2xl font-bold text-green-600">{{ stats.valid }}</div>
+        </div>
+        <div class="bg-white shadow rounded-lg p-4">
+            <div class="text-sm text-gray-500">Invalid</div>
+            <div class="text-2xl font-bold text-red-600">{{ stats.invalid }}</div>
+        </div>
+    </div>
+
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">All Extracted Emails</h2>
+                {% if scan_job_name %}
+                <div class="flex items-center space-x-2 mt-1">
+                    <p class="text-sm text-gray-600">Filtered by scan: <span class="font-semibold">{{ scan_job_name }}</span></p>
+                    <a href="/emails/all" class="text-xs text-blue-600 hover:text-blue-800 underline">Clear Filter</a>
+                </div>
+                {% endif %}
+            </div>
+            <div class="flex space-x-2">
+                <div class="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-md bg-white">
+                    <input type="checkbox" id="filterUnvalidated" onchange="toggleFilter()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <label for="filterUnvalidated" class="text-sm text-gray-700 cursor-pointer">Show only unvalidated</label>
+                </div>
+                <button id="selectAllBtn" onclick="toggleSelectAll()"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    ☑ Select All
+                </button>
+                <button id="validateSelectedBtn" onclick="validateSelected()" disabled
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    🔍 Validate Selected (<span id="selectedCount">0</span>)
+                </button>
+                <a href="/emails/export"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700">
+                    📥 Export Valid to CSV
+                </a>
+                <button onclick="startValidation()" id="validatePendingBtn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                    🔍 Validate All Pending
+                </button>
+                <button onclick="startRevalidation()" id="revalidateInvalidBtn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700">
+                    🔄 Re-validate All Invalid
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source URL</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validation Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validation Details</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Extracted At</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in emails %}
+                    {% set email_addr = item.email %}
+                    {% set status = item.validation_status %}
+                    {% set details = item.validation_details %}
+                    {% set source_urls = item.source_urls %}
+                    {% set occurrence_count = item.occurrence_count %}
+                    <tr class="hover:bg-gray-50 {% if status == 'valid' %}bg-green-50{% elif status == 'invalid' %}bg-red-50{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if status == 'not_validated' %}
+                            <input type="checkbox" class="email-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                                   value="{{ email_addr }}" onchange="updateSelectedCount()">
+                            {% else %}
+                            <span class="text-gray-400">✓</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">{{ email_addr }}</div>
+                            {% if item.context %}
+                            <div class="text-xs text-gray-500 mt-1 max-w-xs truncate" title="{{ item.context }}">
+                                Context: {{ item.context[:50] }}...
+                            </div>
+                            {% endif %}
+                            {% if occurrence_count > 1 %}
+                            <div class="text-xs text-gray-400 mt-1">
+                                Found {{ occurrence_count }} times
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-sm text-gray-500">
+                                {% if source_urls %}
+                                    {% if source_urls|length == 1 %}
+                                        <a href="{{ source_urls[0] }}" target="_blank" class="text-blue-600 hover:text-blue-800 max-w-xs truncate block">
+                                            {{ source_urls[0] }}
+                                        </a>
+                                    {% else %}
+                                        <div class="space-y-1">
+                                            <a href="{{ source_urls[0] }}" target="_blank" class="text-blue-600 hover:text-blue-800 max-w-xs truncate block">
+                                                {{ source_urls[0] }}
+                                            </a>
+                                            <div class="text-xs text-gray-400">
+                                                + {{ source_urls|length - 1 }} more URL{{ 's' if (source_urls|length - 1) > 1 else '' }}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if status == 'not_validated' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                ⏳ Not Validated
+                            </span>
+                            {% elif status == 'valid' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                ✅ Valid
+                            </span>
+                            {% elif status == 'invalid' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                ❌ Invalid
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if status == 'valid' and details %}
+                            <div class="text-xs text-gray-600">
+                                <div class="flex items-center space-x-2">
+                                    <span>MX: {% if details.has_mx_record %}✅{% else %}❌{% endif %}</span>
+                                    <span>A: {% if details.has_a_record %}✅{% else %}❌{% endif %}</span>
+                                    <span>SMTP: {% if details.smtp_valid %}✅{% else %}❌{% endif %}</span>
+                                    {% if details.is_catch_all %}
+                                    <span class="text-yellow-600">⚠️ Catch-All</span>
+                                    {% endif %}
+                                </div>
+                                {% if details.validated_at %}
+                                <div class="text-gray-500 mt-1">
+                                    Validated: {{ details.validated_at.strftime('%Y-%m-%d %H:%M') }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% elif status == 'invalid' and details %}
+                            <div class="text-xs text-gray-600">
+                                <div class="font-semibold text-red-600">{{ details.rejection_stage|upper }}</div>
+                                <div class="text-gray-500 mt-1">{{ details.rejection_reason or 'No reason provided' }}</div>
+                                {% if details.validated_at %}
+                                <div class="text-gray-500 mt-1">
+                                    Validated: {{ details.validated_at.strftime('%Y-%m-%d %H:%M') }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% else %}
+                            <span class="text-xs text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ item.extracted_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if total > per_page %}
+        <div class="mt-6 flex justify-between items-center">
+            <div class="text-sm text-gray-700">
+                Showing {{ (page - 1) * per_page + 1 }} to {% if page * per_page > total %}{{ total }}{% else %}{{ page * per_page }}{% endif %} of {{ total }} results
+            </div>
+            <div class="flex space-x-2">
+                {% if page > 1 %}
+                <a href="?page={{ page - 1 }}{% if scan_id %}&scan_id={{ scan_id }}{% endif %}"
+                    class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Previous
+                </a>
+                {% endif %}
+                {% if page * per_page < total %}
+                <a href="?page={{ page + 1 }}{% if scan_id %}&scan_id={{ scan_id }}{% endif %}"
+                    class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Next
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Validation Progress Modal -->
+<div id="validationModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="validationModalTitle" class="text-lg font-bold text-gray-900">Email Validation Progress</h3>
+                <button onclick="closeValidationModal()" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl">&times;</span>
+                </button>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div class="mb-4">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="validationStatus" class="text-sm font-medium text-gray-700">Initializing...</span>
+                    <span id="validationProgress" class="text-sm font-medium text-gray-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="validationProgressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <!-- Current Email -->
+            <div class="mb-4 p-3 bg-gray-50 rounded-lg">
+                <div id="currentEmailLabel" class="text-xs text-gray-500 mb-1">Currently Validating:</div>
+                <div id="currentEmail" class="text-sm font-medium text-gray-900">-</div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="grid grid-cols-4 gap-4 mb-4">
+                <div class="text-center p-3 bg-blue-50 rounded-lg">
+                    <div class="text-xs text-gray-500">Total</div>
+                    <div id="validationTotal" class="text-xl font-bold text-blue-600">0</div>
+                </div>
+                <div class="text-center p-3 bg-green-50 rounded-lg">
+                    <div class="text-xs text-gray-500">Valid</div>
+                    <div id="validationValid" class="text-xl font-bold text-green-600">0</div>
+                </div>
+                <div class="text-center p-3 bg-red-50 rounded-lg">
+                    <div class="text-xs text-gray-500">Invalid</div>
+                    <div id="validationInvalid" class="text-xl font-bold text-red-600">0</div>
+                </div>
+                <div class="text-center p-3 bg-yellow-50 rounded-lg">
+                    <div class="text-xs text-gray-500">Processed</div>
+                    <div id="validationProcessed" class="text-xl font-bold text-yellow-600">0</div>
+                </div>
+            </div>
+            
+            <!-- Time Info -->
+            <div class="mb-4 flex justify-between text-sm text-gray-600">
+                <span>Elapsed: <span id="elapsedTime">0s</span></span>
+                <span id="timeRemaining" class="hidden">Remaining: <span id="remainingTime">-</span></span>
+            </div>
+            
+            <!-- Activity Log -->
+            <div class="mb-4">
+                <div class="text-xs font-medium text-gray-500 mb-2">Activity Log:</div>
+                <div id="validationActivity" class="h-48 overflow-y-auto bg-gray-50 rounded p-3 text-xs space-y-1 custom-scrollbar">
+                    <div class="text-gray-400">Waiting for validation to start...</div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeValidationModal()" id="closeValidationBtn"
+                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 hidden">
+                    Close
+                </button>
+                <button onclick="refreshPage()" id="refreshPageBtn"
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 hidden">
+                    Refresh Page
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSelectAll() {
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        const emailCheckboxes = document.querySelectorAll('.email-checkbox');
+        const isChecked = selectAllCheckbox.checked;
+        
+        emailCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        
+        updateSelectedCount();
+    }
+    
+    function updateSelectedCount() {
+        const emailCheckboxes = document.querySelectorAll('.email-checkbox:checked');
+        const count = emailCheckboxes.length;
+        const validateBtn = document.getElementById('validateSelectedBtn');
+        const countSpan = document.getElementById('selectedCount');
+        
+        countSpan.textContent = count;
+        validateBtn.disabled = count === 0;
+        
+        // Update select all checkbox state
+        const allCheckboxes = document.querySelectorAll('.email-checkbox');
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+        if (allCheckboxes.length > 0) {
+            selectAllCheckbox.checked = count === allCheckboxes.length;
+        }
+    }
+    
+    function validateSelected() {
+        const emailCheckboxes = document.querySelectorAll('.email-checkbox:checked');
+        const emails = Array.from(emailCheckboxes).map(cb => cb.value);
+        
+        if (emails.length === 0) {
+            alert('Please select at least one email to validate');
+            return;
+        }
+        
+        if (!confirm(`Validate ${emails.length} selected email(s)? This may take a few moments.`)) {
+            return;
+        }
+        
+        // Disable button and show loading
+        const validateBtn = document.getElementById('validateSelectedBtn');
+        const originalText = validateBtn.innerHTML;
+        validateBtn.disabled = true;
+        validateBtn.innerHTML = '⏳ Validating...';
+        
+        // Send validation request
+        fetch('/emails/all/validate-selected', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ emails: emails })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Validation complete!\nValid: ${data.valid || 0}\nInvalid: ${data.invalid || 0}\nAlready validated: ${data.already_validated || 0}`);
+                // Reload page to show updated status
+                window.location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Validation failed'));
+                validateBtn.disabled = false;
+                validateBtn.innerHTML = originalText;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error validating emails. Please try again.');
+            validateBtn.disabled = false;
+            validateBtn.innerHTML = originalText;
+        });
+    }
+    
+    function toggleFilter() {
+        const filterCheckbox = document.getElementById('filterUnvalidated');
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            const statusCell = row.querySelector('td:nth-child(5)'); // Validation Status column (after checkbox)
+            if (statusCell) {
+                const isUnvalidated = statusCell.textContent.includes('Not Validated');
+                if (filterCheckbox.checked) {
+                    row.style.display = isUnvalidated ? '' : 'none';
+                } else {
+                    row.style.display = '';
+                }
+            }
+        });
+        
+        // Update select all functionality
+        updateSelectedCount();
+    }
+    
+    // Validation progress tracking
+    let validationJobId = null;
+    let validationPollInterval = null;
+    
+    function startValidation() {
+        const btn = document.getElementById('validatePendingBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Starting...';
+        
+        // Show modal
+        document.getElementById('validationModal').classList.remove('hidden');
+        document.getElementById('validationModalTitle').textContent = 'Email Validation Progress';
+        document.getElementById('currentEmailLabel').textContent = 'Currently Validating:';
+        document.getElementById('validationProgressBar').classList.remove('bg-orange-600', 'bg-green-600', 'bg-red-600');
+        document.getElementById('validationProgressBar').classList.add('bg-blue-600');
+        
+        // Reset UI
+        document.getElementById('validationProgressBar').style.width = '0%';
+        document.getElementById('validationProgress').textContent = '0%';
+        document.getElementById('validationStatus').textContent = 'Starting validation...';
+        document.getElementById('currentEmail').textContent = '-';
+        document.getElementById('validationTotal').textContent = '0';
+        document.getElementById('validationValid').textContent = '0';
+        document.getElementById('validationInvalid').textContent = '0';
+        document.getElementById('validationProcessed').textContent = '0';
+        document.getElementById('elapsedTime').textContent = '0s';
+        document.getElementById('timeRemaining').classList.add('hidden');
+        document.getElementById('validationActivity').innerHTML = '<div class="text-gray-400">Starting validation...</div>';
+        document.getElementById('closeValidationBtn').classList.add('hidden');
+        document.getElementById('refreshPageBtn').classList.add('hidden');
+        
+        // Start validation
+        fetch('/validate/pending', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.job_id) {
+                validationJobId = data.job_id;
+                startValidationPolling();
+            } else if (data.error) {
+                alert('Error: ' + data.error);
+                closeValidationModal();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to start validation');
+            closeValidationModal();
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = '🔍 Validate All Pending';
+        });
+    }
+    
+    function startValidationPolling() {
+        if (validationPollInterval) {
+            clearInterval(validationPollInterval);
+        }
+        validationPollInterval = setInterval(checkValidationProgress, 1000); // Poll every second
+    }
+    
+    function checkValidationProgress() {
+        if (!validationJobId) return;
+        
+        fetch(`/validate/status/${validationJobId}`)
+            .then(response => {
+                if (response.status === 404) {
+                    // Job not found - server may have restarted
+                    clearInterval(validationPollInterval);
+                    validationPollInterval = null;
+                    document.getElementById('validationStatus').textContent = '✗ Job not found. Server may have restarted.';
+                    document.getElementById('validationProgressBar').classList.remove('bg-blue-600', 'bg-orange-600');
+                    document.getElementById('validationProgressBar').classList.add('bg-red-600');
+                    document.getElementById('closeValidationBtn').classList.remove('hidden');
+                    return response.json();
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error && data.status === 'not_found') {
+                    // Handle job not found
+                    clearInterval(validationPollInterval);
+                    validationPollInterval = null;
+                    document.getElementById('validationStatus').textContent = '✗ ' + data.error;
+                    document.getElementById('validationProgressBar').classList.remove('bg-blue-600', 'bg-orange-600');
+                    document.getElementById('validationProgressBar').classList.add('bg-red-600');
+                    document.getElementById('closeValidationBtn').classList.remove('hidden');
+                } else {
+                    updateValidationProgress(data);
+                }
+            })
+            .catch(error => {
+                console.error('Polling error:', error);
+            });
+    }
+    
+    function updateValidationProgress(data) {
+        // Update progress bar
+        const progress = data.progress || 0;
+        document.getElementById('validationProgressBar').style.width = progress + '%';
+        document.getElementById('validationProgress').textContent = progress + '%';
+        
+        // Update status
+        document.getElementById('validationStatus').textContent = data.message || 'Processing...';
+        
+        // Update current email
+        if (data.current_email) {
+            document.getElementById('currentEmail').textContent = data.current_email;
+        } else {
+            document.getElementById('currentEmail').textContent = '-';
+        }
+        
+        // Update statistics
+        document.getElementById('validationTotal').textContent = data.total || 0;
+        document.getElementById('validationValid').textContent = data.valid || 0;
+        document.getElementById('validationInvalid').textContent = data.invalid || 0;
+        document.getElementById('validationProcessed').textContent = data.processed || 0;
+        
+        // Update elapsed time
+        const elapsed = data.elapsed_time || 0;
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        if (minutes > 0) {
+            document.getElementById('elapsedTime').textContent = `${minutes}m ${seconds}s`;
+        } else {
+            document.getElementById('elapsedTime').textContent = `${seconds}s`;
+        }
+        
+        // Calculate and show time remaining
+        if (data.processed > 0 && data.total > 0 && data.status === 'running') {
+            const avgTime = elapsed / data.processed;
+            const remaining = data.total - data.processed;
+            const remainingSeconds = Math.ceil(avgTime * remaining);
+            const remainingMinutes = Math.floor(remainingSeconds / 60);
+            const remainingSecs = remainingSeconds % 60;
+            
+            if (remainingSeconds > 0) {
+                document.getElementById('timeRemaining').classList.remove('hidden');
+                if (remainingMinutes > 0) {
+                    document.getElementById('remainingTime').textContent = `${remainingMinutes}m ${remainingSecs}s`;
+                } else {
+                    document.getElementById('remainingTime').textContent = `${remainingSecs}s`;
+                }
+            }
+        }
+        
+        // Update activity log
+        if (data.activity && data.activity.length > 0) {
+            const activityDiv = document.getElementById('validationActivity');
+            activityDiv.innerHTML = '';
+            data.activity.forEach(activity => {
+                const div = document.createElement('div');
+                div.className = `flex items-start space-x-2 ${
+                    activity.type === 'success' ? 'text-green-600' :
+                    activity.type === 'error' ? 'text-red-600' :
+                    'text-gray-600'
+                }`;
+                div.textContent = activity.message;
+                activityDiv.appendChild(div);
+            });
+            // Scroll to bottom
+            activityDiv.scrollTop = activityDiv.scrollHeight;
+        }
+        
+        // Handle completion
+        if (data.status === 'completed') {
+            clearInterval(validationPollInterval);
+            validationPollInterval = null;
+            document.getElementById('validationStatus').textContent = '✓ ' + data.message;
+            document.getElementById('validationProgressBar').classList.remove('bg-blue-600');
+            document.getElementById('validationProgressBar').classList.add('bg-green-600');
+            document.getElementById('currentEmail').textContent = 'Validation complete!';
+            document.getElementById('timeRemaining').classList.add('hidden');
+            document.getElementById('closeValidationBtn').classList.remove('hidden');
+            document.getElementById('refreshPageBtn').classList.remove('hidden');
+        } else if (data.status === 'failed') {
+            clearInterval(validationPollInterval);
+            validationPollInterval = null;
+            document.getElementById('validationStatus').textContent = '✗ ' + (data.error || 'Validation failed');
+            document.getElementById('validationProgressBar').classList.remove('bg-blue-600');
+            document.getElementById('validationProgressBar').classList.add('bg-red-600');
+            document.getElementById('closeValidationBtn').classList.remove('hidden');
+        }
+    }
+    
+    function closeValidationModal() {
+        if (validationPollInterval) {
+            clearInterval(validationPollInterval);
+            validationPollInterval = null;
+        }
+        document.getElementById('validationModal').classList.add('hidden');
+        validationJobId = null;
+    }
+    
+    function refreshPage() {
+        window.location.reload();
+    }
+    
+    // Re-validate invalid emails
+    function startRevalidation() {
+        const btn = document.getElementById('revalidateInvalidBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Starting...';
+        
+        document.getElementById('validationModal').classList.remove('hidden');
+        document.getElementById('validationModalTitle').textContent = 'Email Re-Validation Progress';
+        document.getElementById('currentEmailLabel').textContent = 'Currently Re-validating:';
+        document.getElementById('validationProgressBar').style.width = '0%';
+        document.getElementById('validationProgressBar').classList.remove('bg-green-600', 'bg-red-600', 'bg-blue-600');
+        document.getElementById('validationProgressBar').classList.add('bg-orange-600');
+        document.getElementById('validationProgress').textContent = '0%';
+        document.getElementById('validationStatus').textContent = 'Starting re-validation...';
+        document.getElementById('currentEmail').textContent = '-';
+        document.getElementById('validationTotal').textContent = '0';
+        document.getElementById('validationValid').textContent = '0';
+        document.getElementById('validationInvalid').textContent = '0';
+        document.getElementById('validationProcessed').textContent = '0';
+        document.getElementById('elapsedTime').textContent = '0s';
+        document.getElementById('timeRemaining').classList.add('hidden');
+        document.getElementById('validationActivity').innerHTML = '<div class="text-gray-400">Starting re-validation...</div>';
+        document.getElementById('closeValidationBtn').classList.add('hidden');
+        document.getElementById('refreshPageBtn').classList.add('hidden');
+        
+        fetch('/validate/invalid', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.job_id) {
+                validationJobId = data.job_id;
+                startValidationPolling();
+            } else if (data.error) {
+                alert('Error: ' + data.error);
+                closeValidationModal();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Failed to start re-validation');
+            closeValidationModal();
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.textContent = '🔄 Re-validate All Invalid';
+        });
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSelectedCount();
+    });
+</script>
+{% endblock %}
+

@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Email Sender - Email Extraction System{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <!-- Warning Banner -->
+    <div class="mb-6 p-4 bg-red-50 border-l-4 border-red-400">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clip-rule="evenodd" />
+                </svg>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-red-700">
+                    <strong>IMPORTANT:</strong> Only send emails to recipients who have explicitly opted in.
+                    Ensure compliance with CAN-SPAM, GDPR, and all applicable anti-spam regulations.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Available Recipients</h3>
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <div class="text-3xl font-bold text-blue-600">{{ valid_count }}</div>
+                <p class="text-sm text-gray-500 mt-1">Subscribed & Ready</p>
+            </div>
+            <div>
+                <div class="text-3xl font-bold text-gray-600">{{ total_count }}</div>
+                <p class="text-sm text-gray-500 mt-1">Total Valid Emails</p>
+            </div>
+        </div>
+        <div class="mt-4">
+            <a href="/emails/valid" class="text-blue-600 hover:text-blue-800 text-sm">
+                → View and select recipients
+            </a>
+        </div>
+    </div>
+
+    <!-- SMTP & Email Account Management Links -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">SMTP & Email Configuration</h3>
+        <div class="grid grid-cols-2 gap-4">
+            <a href="/smtp-configs" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-center">
+                Manage SMTP Configurations
+            </a>
+            <a href="/email-accounts" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-center">
+                Manage Email Accounts
+            </a>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">
+            Configure multiple SMTP servers and email accounts for different campaigns.
+        </p>
+    </div>
+
+    <!-- Email Composition Form -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Compose Email Campaign</h3>
+        <form id="sender-form">
+            <!-- SMTP Configuration Selection -->
+            <div class="mb-4">
+                <label for="smtp-config-id" class="block text-sm font-medium text-gray-700 mb-2">
+                    SMTP Configuration *
+                </label>
+                <select id="smtp-config-id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select SMTP Configuration --</option>
+                    {% for smtp_config in smtp_configs %}
+                    <option value="{{ smtp_config.id }}">{{ smtp_config.name }} ({{ smtp_config.host }}:{{ smtp_config.port }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="/smtp-configs" class="text-blue-600 hover:underline">Add new SMTP configuration</a>
+                </p>
+            </div>
+
+            <!-- Email Account Selection -->
+            <div class="mb-4">
+                <label for="email-account-id" class="block text-sm font-medium text-gray-700 mb-2">
+                    From Email Account *
+                </label>
+                <select id="email-account-id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select Email Account --</option>
+                    {% for email_account in email_accounts %}
+                    <option value="{{ email_account.id }}">{{ email_account.name }} ({{ email_account.from_email }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="/email-accounts" class="text-blue-600 hover:underline">Add new email account</a>
+                </p>
+            </div>
+
+            <div class="mb-4">
+                <label for="campaign-subject" class="block text-sm font-medium text-gray-700 mb-2">
+                    Subject *
+                </label>
+                <input type="text" id="campaign-subject" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="Enter email subject">
+            </div>
+
+            <div class="mb-4">
+                <label for="campaign-body" class="block text-sm font-medium text-gray-700 mb-2">
+                    Email Body (HTML) *
+                </label>
+                <textarea id="campaign-body" rows="12" required
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                          placeholder="Enter your email content in HTML format. Example:&#10;&lt;h1&gt;Hello&lt;/h1&gt;&#10;&lt;p&gt;This is your email content.&lt;/p&gt;"></textarea>
+                <p class="text-xs text-gray-500 mt-1">
+                    HTML format supported. Unsubscribe link will be automatically added at the bottom.
+                </p>
+            </div>
+
+            <div class="mb-4">
+                <label for="campaign-body-text" class="block text-sm font-medium text-gray-700 mb-2">
+                    Plain Text Version (Optional)
+                </label>
+                <textarea id="campaign-body-text" rows="6"
+                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Optional plain text version of your email"></textarea>
+            </div>
+
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" id="include-unsubscribe" checked
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">
+                        Include unsubscribe link in email footer (Recommended for compliance)
+                    </span>
+                </label>
+            </div>
+
+            <div class="mb-4 p-4 bg-yellow-50 border-l-4 border-yellow-400">
+                <p class="text-sm text-yellow-700">
+                    <strong>Note:</strong> This will send to all subscribed recipients. 
+                    To send to specific recipients, go to <a href="/emails/valid" class="underline">Valid Emails</a> page and use batch selection.
+                </p>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="preview-btn"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Preview
+                </button>
+                <button type="submit" id="send-btn"
+                        class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Send to All Subscribed ({{ valid_count }})
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">Email Preview</h3>
+                <button id="close-preview" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="border border-gray-300 rounded p-4 bg-gray-50">
+                <div class="mb-2">
+                    <strong>Subject:</strong> <span id="preview-subject"></span>
+                </div>
+                <hr class="my-3">
+                <div id="preview-body" class="prose max-w-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMTP Configuration -->
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-medium text-gray-900">SMTP Configuration</h3>
+            <button id="test-smtp-btn" 
+                    class="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
+                🔍 Test SMTP Connection
+            </button>
+        </div>
+        <p class="text-sm text-gray-500 mb-4">Configure your SMTP settings in the .env file</p>
+        
+        <!-- SMTP Test Result -->
+        <div id="smtp-test-result" class="hidden mb-4 p-4 rounded"></div>
+        
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div class="bg-gray-50 p-4 rounded">
+                <dt class="text-sm font-medium text-gray-500">SMTP Host</dt>
+                <dd class="mt-1 text-sm text-gray-900" id="smtp-host-display">Loading...</dd>
+            </div>
+            <div class="bg-gray-50 p-4 rounded">
+                <dt class="text-sm font-medium text-gray-500">SMTP Port</dt>
+                <dd class="mt-1 text-sm text-gray-900" id="smtp-port-display">Loading...</dd>
+            </div>
+            <div class="bg-gray-50 p-4 rounded">
+                <dt class="text-sm font-medium text-gray-500">From Email</dt>
+                <dd class="mt-1 text-sm text-gray-900" id="smtp-from-display">Loading...</dd>
+            </div>
+            <div class="bg-gray-50 p-4 rounded">
+                <dt class="text-sm font-medium text-gray-500">Use TLS</dt>
+                <dd class="mt-1 text-sm text-gray-900" id="smtp-tls-display">Loading...</dd>
+            </div>
+        </div>
+        <div class="mt-4 p-3 bg-yellow-50 border-l-4 border-yellow-400">
+            <p class="text-sm text-yellow-700">
+                <strong>Note:</strong> Make sure your SMTP credentials are correct in the .env file. 
+                For Gmail, you may need to use an "App Password" instead of your regular password.
+            </p>
+        </div>
+    </div>
+
+    <!-- Recent Campaigns -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-medium text-gray-900 mb-4">Recent Campaigns</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Campaign Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sent
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Failed</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for campaign in campaigns %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{
+                            campaign.campaign_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if campaign.status == 'completed' %}bg-green-100 text-green-800
+                                {% elif campaign.status == 'running' %}bg-blue-100 text-blue-800
+                                {% elif campaign.status == 'failed' %}bg-red-100 text-red-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ campaign.status }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ campaign.sent_count }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ campaign.failed_count }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{
+                            campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Display SMTP configuration
+    const smtpConfig = {{ smtp_config|tojson }};
+    document.getElementById('smtp-host-display').textContent = smtpConfig.host;
+    document.getElementById('smtp-port-display').textContent = smtpConfig.port;
+    document.getElementById('smtp-from-display').textContent = smtpConfig.from_email;
+    document.getElementById('smtp-tls-display').textContent = smtpConfig.use_tls;
+    
+    const senderForm = document.getElementById('sender-form');
+    const previewBtn = document.getElementById('preview-btn');
+    const previewModal = document.getElementById('preview-modal');
+    const closePreview = document.getElementById('close-preview');
+    const sendBtn = document.getElementById('send-btn');
+    const testSmtpBtn = document.getElementById('test-smtp-btn');
+    const smtpTestResult = document.getElementById('smtp-test-result');
+    
+    // Test SMTP connection
+    testSmtpBtn.addEventListener('click', function() {
+        testSmtpBtn.disabled = true;
+        testSmtpBtn.textContent = 'Testing...';
+        smtpTestResult.classList.add('hidden');
+        
+        fetch('/sender/test-smtp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            smtpTestResult.classList.remove('hidden');
+            
+            if (data.success) {
+                smtpTestResult.className = 'mb-4 p-4 rounded bg-green-50 border-l-4 border-green-400';
+                smtpTestResult.innerHTML = `
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-medium text-green-800">Connection Successful!</h3>
+                            <p class="text-sm text-green-700 mt-1">${data.message}</p>
+                            <div class="mt-2 text-xs text-green-600">
+                                <p><strong>Host:</strong> ${data.details.host}</p>
+                                <p><strong>Port:</strong> ${data.details.port}</p>
+                                <p><strong>User:</strong> ${data.details.user}</p>
+                                <p><strong>From:</strong> ${data.details.from_email}</p>
+                                <p><strong>TLS:</strong> ${data.details.use_tls ? 'Yes' : 'No'}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                smtpTestResult.className = 'mb-4 p-4 rounded bg-red-50 border-l-4 border-red-400';
+                let suggestionsHtml = '';
+                if (data.suggestions && data.suggestions.length > 0) {
+                    suggestionsHtml = '<div class="mt-3"><p class="text-sm font-medium text-red-800">Suggestions:</p><ul class="list-disc list-inside text-sm text-red-700 mt-1">';
+                    data.suggestions.forEach(suggestion => {
+                        suggestionsHtml += `<li>${suggestion}</li>`;
+                    });
+                    suggestionsHtml += '</ul></div>';
+                }
+                
+                let settingsHtml = '';
+                if (data.current_settings) {
+                    settingsHtml = `
+                        <div class="mt-3 p-3 bg-red-100 rounded">
+                            <p class="text-xs font-medium text-red-800 mb-2">Current Settings:</p>
+                            <div class="text-xs text-red-700 space-y-1">
+                                <p><strong>Host:</strong> ${data.current_settings.host}</p>
+                                <p><strong>Port:</strong> ${data.current_settings.port}</p>
+                                <p><strong>User:</strong> ${data.current_settings.user}</p>
+                                <p><strong>From:</strong> ${data.current_settings.from_email}</p>
+                                <p><strong>TLS:</strong> ${data.current_settings.use_tls ? 'Yes' : 'No'}</p>
+                                <p><strong>Timeout:</strong> ${data.current_settings.timeout}s</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                smtpTestResult.innerHTML = `
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <h3 class="text-sm font-medium text-red-800">Connection Failed</h3>
+                            <p class="text-sm text-red-700 mt-1">${data.message}</p>
+                            ${settingsHtml}
+                            ${suggestionsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            smtpTestResult.classList.remove('hidden');
+            smtpTestResult.className = 'mb-4 p-4 rounded bg-red-50 border-l-4 border-red-400';
+            smtpTestResult.innerHTML = `
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Error</h3>
+                        <p class="text-sm text-red-700 mt-1">Failed to test connection: ${error}</p>
+                    </div>
+                </div>
+            `;
+        })
+        .finally(() => {
+            testSmtpBtn.disabled = false;
+            testSmtpBtn.textContent = '🔍 Test SMTP Connection';
+        });
+    });
+
+    // Preview functionality
+    previewBtn.addEventListener('click', function() {
+        const subject = document.getElementById('campaign-subject').value;
+        const body = document.getElementById('campaign-body').value;
+        const includeUnsubscribe = document.getElementById('include-unsubscribe').checked;
+
+        if (!subject || !body) {
+            alert('Please fill in subject and body first');
+            return;
+        }
+
+        let previewBody = body;
+        if (includeUnsubscribe) {
+            previewBody += '<hr style="margin-top: 20px; border: none; border-top: 1px solid #eee;"><p style="font-size: 12px; color: #999; text-align: center; margin-top: 20px;"><a href="#" style="color: #999; text-decoration: underline;">Unsubscribe</a></p>';
+        }
+
+        document.getElementById('preview-subject').textContent = subject;
+        document.getElementById('preview-body').innerHTML = previewBody;
+        previewModal.classList.remove('hidden');
+    });
+
+    closePreview.addEventListener('click', function() {
+        previewModal.classList.add('hidden');
+    });
+
+    previewModal.addEventListener('click', function(e) {
+        if (e.target === previewModal) {
+            previewModal.classList.add('hidden');
+        }
+    });
+
+    // Form submission
+    senderForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const subject = document.getElementById('campaign-subject').value;
+        const body = document.getElementById('campaign-body').value;
+        const bodyText = document.getElementById('campaign-body-text').value || body.replace(/<[^>]*>/g, '');
+        const includeUnsubscribe = document.getElementById('include-unsubscribe').checked;
+
+        if (!subject || !body) {
+            alert('Please fill in subject and body');
+            return;
+        }
+
+        if (!confirm(`Are you sure you want to send this email to all ${document.getElementById('send-btn').textContent.match(/\d+/)[0]} subscribed recipients?`)) {
+            return;
+        }
+
+        // Disable send button
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+
+        // Get all subscribed emails
+        fetch('/sender/get-subscribed', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.emails && data.emails.length > 0) {
+                // Send to all subscribed emails
+                return fetch('/sender/batch', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        emails: data.emails,
+                        subject: subject,
+                        body_html: body,
+                        body_text: bodyText,
+                        include_unsubscribe: includeUnsubscribe,
+                        smtp_config_id: parseInt(document.getElementById('smtp-config-id').value),
+                        email_account_id: parseInt(document.getElementById('email-account-id').value)
+                    })
+                });
+            } else {
+                throw new Error('No subscribed recipients found');
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(`Emails queued for sending! They will be sent one by one to ${data.count || 'all'} recipients.`);
+                senderForm.reset();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        })
+        .finally(() => {
+            sendBtn.disabled = false;
+            const subscribedCount = {{ valid_count }};
+            sendBtn.textContent = `Send to All Subscribed (${subscribedCount})`;
+        });
+    });
+});
+</script>
+{% endblock %}

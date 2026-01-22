@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Email Accounts - Email Extraction System{% endblock %}
+
+{% block content %}
+<div class="px-4 py-6 sm:px-0">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Email Accounts</h1>
+        <button onclick="showAddModal()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+            + Add Email Account
+        </button>
+    </div>
+
+    <!-- Email Accounts List -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Email</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SMTP Config</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for account in email_accounts %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ account.name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ account.from_email }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ account.from_name }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {% if account.smtp_config %}
+                        {{ account.smtp_config.name }}
+                        {% else %}
+                        <span class="text-red-500">Not set</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if account.is_active %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                        {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button onclick="editAccount({{ account.id }})" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                        <button onclick="deleteAccount({{ account.id }})" class="text-red-600 hover:text-red-900">Delete</button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="px-6 py-4 text-center text-sm text-gray-500">No email accounts found. Add one to get started.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="account-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 shadow-lg rounded-md bg-white">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-bold" id="modal-title">Add Email Account</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <form id="account-form">
+            <input type="hidden" id="account-id">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input type="text" id="account-name" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="e.g., Marketing Email">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">SMTP Configuration *</label>
+                <select id="account-smtp-config-id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Select SMTP Configuration --</option>
+                    {% for smtp_config in smtp_configs %}
+                    <option value="{{ smtp_config.id }}">{{ smtp_config.name }} ({{ smtp_config.host }})</option>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-gray-500 mt-1">
+                    <a href="/smtp-configs" class="text-blue-600 hover:underline">Add new SMTP configuration</a>
+                </p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">From Email *</label>
+                <input type="email" id="account-from-email" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="noreply@example.com">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">From Name *</label>
+                <input type="text" id="account-from-name" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="Your Company Name">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Reply-To (Optional)</label>
+                <input type="email" id="account-reply-to"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       placeholder="support@example.com">
+            </div>
+            <div class="mb-4">
+                <label class="flex items-center">
+                    <input type="checkbox" id="account-is-active" checked
+                           class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                    <span class="ml-2 text-sm text-gray-700">Active</span>
+                </label>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" onclick="closeModal()"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let editingId = null;
+
+function showAddModal() {
+    editingId = null;
+    document.getElementById('modal-title').textContent = 'Add Email Account';
+    document.getElementById('account-form').reset();
+    document.getElementById('account-id').value = '';
+    document.getElementById('account-is-active').checked = true;
+    document.getElementById('account-modal').classList.remove('hidden');
+}
+
+function editAccount(id) {
+    // Fetch account data and populate form
+    fetch(`/email-accounts/${id}/edit`, { method: 'GET' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                editingId = id;
+                document.getElementById('modal-title').textContent = 'Edit Email Account';
+                document.getElementById('account-id').value = id;
+                document.getElementById('account-name').value = data.account.name;
+                document.getElementById('account-smtp-config-id').value = data.account.smtp_config_id;
+                document.getElementById('account-from-email').value = data.account.from_email;
+                document.getElementById('account-from-name').value = data.account.from_name;
+                document.getElementById('account-reply-to').value = data.account.reply_to || '';
+                document.getElementById('account-is-active').checked = data.account.is_active;
+                document.getElementById('account-modal').classList.remove('hidden');
+            }
+        })
+        .catch(() => {
+            // If GET doesn't work, just show modal and let user fill
+            editingId = id;
+            document.getElementById('modal-title').textContent = 'Edit Email Account';
+            document.getElementById('account-id').value = id;
+            document.getElementById('account-modal').classList.remove('hidden');
+        });
+}
+
+function closeModal() {
+    document.getElementById('account-modal').classList.add('hidden');
+}
+
+function deleteAccount(id) {
+    if (!confirm('Are you sure you want to delete this email account? This cannot be undone.')) return;
+    
+    fetch(`/email-accounts/${id}/delete`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+        });
+}
+
+document.getElementById('account-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const data = {
+        name: document.getElementById('account-name').value,
+        smtp_config_id: parseInt(document.getElementById('account-smtp-config-id').value),
+        from_email: document.getElementById('account-from-email').value,
+        from_name: document.getElementById('account-from-name').value,
+        reply_to: document.getElementById('account-reply-to').value || null,
+        is_active: document.getElementById('account-is-active').checked
+    };
+    
+    const url = editingId ? `/email-accounts/${editingId}/edit` : '/email-accounts/add';
+    const method = 'POST';
+    
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+});
+</script>
+{% endblock %}
+

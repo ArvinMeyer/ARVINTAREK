@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Details - Email Extraction System{% endblock %}
+
+{% block content %}
+<style>
+    /* Modern Gradient Background */
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    /* Glassmorphism Card */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    }
+
+    /* Gradient Text */
+    .gradient-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Progress Bar Animation */
+    .progress-bar-animated {
+        background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+        background-size: 200% 100%;
+        animation: gradient-shift 2s ease infinite;
+    }
+
+    @keyframes gradient-shift {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    /* Pulse Animation */
+    .pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: .7;
+        }
+    }
+
+    /* Slide In Animation */
+    .slide-in {
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+</style>
+
+<div class="px-4 py-8 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold gradient-text mb-2">📊 Scan Progress</h1>
+            <p class="text-white text-lg">{{ scan_job.name }}</p>
+        </div>
+
+        <!-- Status Card -->
+        <div class="glass-card p-6 mb-6">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Scan Status</h2>
+                    <p class="text-sm text-gray-600">Created: {{ scan_job.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </p>
+                </div>
+                <span id="statusBadge" class="px-4 py-2 text-sm font-bold rounded-full 
+                    {% if scan_job.status == 'completed' %}bg-green-100 text-green-800
+                    {% elif scan_job.status == 'running' %}bg-blue-100 text-blue-800 pulse
+                    {% elif scan_job.status == 'failed' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ scan_job.status|upper }}
+                </span>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-gradient-to-br from-purple-50 to-indigo-50 p-4 rounded-xl">
+                    <div class="text-sm font-medium text-gray-600 mb-1">📄 Pages Scanned</div>
+                    <div id="pagesScanned" class="text-3xl font-bold gradient-text">{{ scan_job.total_pages }}</div>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl">
+                    <div class="text-sm font-medium text-gray-600 mb-1">📧 Emails Found</div>
+                    <div id="emailsFound" class="text-3xl font-bold text-green-600">{{ scan_job.total_emails }}</div>
+                </div>
+                <div class="bg-gradient-to-br from-blue-50 to-cyan-50 p-4 rounded-xl">
+                    <div class="text-sm font-medium text-gray-600 mb-1">🔗 Total URLs</div>
+                    <div id="totalUrls" class="text-3xl font-bold text-blue-600">{{ urls|length }}</div>
+                </div>
+                <div class="bg-gradient-to-br from-orange-50 to-amber-50 p-4 rounded-xl">
+                    <div class="text-sm font-medium text-gray-600 mb-1">⚡ Threads</div>
+                    <div class="text-3xl font-bold text-orange-600">{{ scan_job.threads }}</div>
+                </div>
+            </div>
+
+            <!-- Progress Bar (for running scans) -->
+            {% if scan_job.status == 'running' %}
+            <div class="mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Progress</span>
+                    <span id="progressPercent" class="text-sm font-medium text-gray-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div id="progressBar" class="progress-bar-animated h-3 rounded-full transition-all duration-500"
+                        style="width: 0%"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="flex space-x-3">
+                {% if scan_job.status == 'pending' or scan_job.status == 'paused' %}
+                <form action="/scan/{{ scan_job.id }}/start" method="POST" class="inline">
+                    <button type="submit"
+                        class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg">
+                        ▶ Start Scan
+                    </button>
+                </form>
+                {% endif %}
+
+                {% if scan_job.status == 'running' %}
+                <form action="/scan/{{ scan_job.id }}/stop" method="POST" class="inline">
+                    <button type="submit"
+                        class="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white font-bold rounded-xl hover:from-red-600 hover:to-pink-700 transform hover:scale-105 transition-all shadow-lg">
+                        ⏸ Stop Scan
+                    </button>
+                </form>
+                {% endif %}
+
+                <a href="/"
+                    class="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transform hover:scale-105 transition-all">
+                    ← Back to Dashboard
+                </a>
+
+                {% if scan_job.total_emails > 0 %}
+                <a href="/emails/all?scan_id={{ scan_job.id }}"
+                    class="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold rounded-xl hover:from-purple-600 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg">
+                    📧 View All Emails
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Activity Feed -->
+            <div class="glass-card p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    Recent Activity
+                </h3>
+                <div id="activityFeed" class="space-y-2 h-96 overflow-y-auto custom-scrollbar">
+                    {% for result in results[-10:]|reverse %}
+                    <div
+                        class="slide-in p-3 rounded-lg border {% if result.status == 'success' %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
+                        <div class="flex items-start">
+                            <span class="text-xs font-mono mr-2 text-gray-500">{{ result.scanned_at.strftime('%H:%M:%S')
+                                }}</span>
+                            <div class="flex-1">
+                                <div class="text-sm font-medium truncate">{{ result.url }}</div>
+                                <div
+                                    class="text-xs {% if result.status == 'success' %}text-green-700{% else %}text-red-700{% endif %}">
+                                    {% if result.status == 'success' %}
+                                    ✓ Found {{ result.emails_found }} email(s)
+                                    {% else %}
+                                    ✗ {{ result.error_message or 'Failed' }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Scan Results Table -->
+            <div class="glass-card p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                        <path fill-rule="evenodd"
+                            d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    All Results (<span id="resultCount">{{ results|length }}</span>)
+                </h3>
+                <div id="resultsTable" class="h-96 overflow-y-auto custom-scrollbar">
+                    <div class="space-y-2">
+                        {% for result in results %}
+                        <div class="p-3 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                            <div class="flex items-center justify-between mb-1">
+                                <span
+                                    class="text-xs font-medium {% if result.status == 'success' %}text-green-600{% else %}text-red-600{% endif %}">
+                                    {% if result.status == 'success' %}✓ SUCCESS{% else %}✗ FAILED{% endif %}
+                                </span>
+                                <span class="text-xs text-gray-500">{{ result.scanned_at.strftime('%H:%M:%S') }}</span>
+                            </div>
+                            <div class="text-sm text-gray-700 truncate mb-1">{{ result.url }}</div>
+                            <div class="text-xs text-gray-600">
+                                {% if result.status == 'success' %}
+                                📧 {{ result.emails_found }} email(s) found
+                                {% else %}
+                                {{ result.error_message or 'No details' }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const scanId = {{ scan_job.id }};
+    const scanStatus = "{{ scan_job.status }}";
+    let pollInterval = null;
+    let lastResultCount = {{ results| length }};
+
+    // Auto-refresh if scan is running
+    if (scanStatus === 'running') {
+        pollInterval = setInterval(refreshScanData, 2000); // Refresh every 2 seconds
+    }
+
+    function refreshScanData() {
+        fetch(`/api/scan/${scanId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                // Update stats
+                document.getElementById('pagesScanned').textContent = data.total_pages || 0;
+                document.getElementById('emailsFound').textContent = data.total_emails || 0;
+
+                // Update progress bar
+                if (data.status === 'running' && data.total_urls > 0) {
+                    const progress = Math.round((data.total_pages / data.total_urls) * 100);
+                    const progressBar = document.getElementById('progressBar');
+                    const progressPercent = document.getElementById('progressPercent');
+                    if (progressBar) {
+                        progressBar.style.width = progress + '%';
+                        progressPercent.textContent = progress + '%';
+                    }
+                }
+
+                // Update status badge
+                const statusBadge = document.getElementById('statusBadge');
+                if (data.status !== scanStatus) {
+                    statusBadge.textContent = data.status.toUpperCase();
+                    statusBadge.className = 'px-4 py-2 text-sm font-bold rounded-full ';
+
+                    if (data.status === 'completed') {
+                        statusBadge.className += 'bg-green-100 text-green-800';
+                        clearInterval(pollInterval);
+                        // Reload page to show final results
+                        setTimeout(() => location.reload(), 1000);
+                    } else if (data.status === 'running') {
+                        statusBadge.className += 'bg-blue-100 text-blue-800 pulse';
+                    } else if (data.status === 'failed') {
+                        statusBadge.className += 'bg-red-100 text-red-800';
+                        clearInterval(pollInterval);
+                    }
+                }
+
+                // Check for new results
+                if (data.result_count > lastResultCount) {
+                    location.reload(); // Reload to show new results
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing scan data:', error);
+            });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,570 @@
+{% extends "base.html" %}
+
+{% block title %}Google Search - Email Extraction System{% endblock %}
+
+{% block content %}
+<style>
+    /* Modern Gradient Background */
+    body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    /* Glassmorphism Card */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    }
+
+    /* Gradient Text */
+    .gradient-text {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Progress Bar Animation */
+    .progress-bar-animated {
+        background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+        background-size: 200% 100%;
+        animation: gradient-shift 2s ease infinite;
+    }
+
+    @keyframes gradient-shift {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+    /* URL Card Hover Effect */
+    .url-card {
+        transition: all 0.3s ease;
+    }
+
+    .url-card:hover {
+        transform: translateX(5px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+
+    /* Activity Log Styling */
+    .activity-item {
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* History Item */
+    .history-item {
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .history-item:hover {
+        background: rgba(102, 126, 234, 0.1);
+        transform: translateX(3px);
+    }
+
+    /* Pulse Animation for Status Badge */
+    .pulse {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: .7;
+        }
+    }
+
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 10px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+</style>
+
+<div class="px-4 py-8 sm:px-6 lg:px-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold gradient-text mb-3">🔍 Google Search Extractor</h1>
+            <p class="text-white text-lg">Extract URLs from Google with AI-powered automation</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Search History Sidebar -->
+            <div class="lg:col-span-1">
+                <div class="glass-card p-6 sticky top-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                            <path fill-rule="evenodd"
+                                d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                clip-rule="evenodd" />
+                        </svg>
+                        Search History
+                    </h3>
+                    <div id="searchHistory" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                        <div class="text-center text-gray-500 text-sm py-4">
+                            Loading history...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="lg:col-span-3">
+                <!-- Search Form -->
+                <div id="searchForm" class="glass-card p-8 mb-6">
+                    <form onsubmit="startSearch(event)">
+                        <div class="mb-6">
+                            <label class="block text-sm font-bold text-gray-700 mb-3">
+                                <span class="flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd"
+                                            d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                                            clip-rule="evenodd" />
+                                    </svg>
+                                    Search Queries
+                                </span>
+                            </label>
+                            <textarea id="queries" rows="5" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                                placeholder='"info@*.com" "HVAC Technician" "New York"&#10;"contact@*.com" "Electrician" "California"'></textarea>
+                            <p class="mt-2 text-sm text-gray-600">One query per line • Use quotes for exact phrases</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Pages Per Query</label>
+                                <input type="number" id="num_results" value="1" min="1" max="10"
+                                    class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all">
+                                <p class="mt-1 text-xs text-gray-500">Each page has ~10 results</p>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit" id="submitBtn"
+                                    class="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl hover:from-purple-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg">
+                                    🚀 Extract URLs
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Live Results Section -->
+                <div id="resultsSection" class="hidden">
+                    <!-- Progress Card -->
+                    <div class="glass-card p-6 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold text-gray-800">Extraction Progress</h3>
+                            <span id="statusBadge"
+                                class="px-4 py-2 text-sm font-bold rounded-full bg-blue-100 text-blue-800 pulse">
+                                Initializing...
+                            </span>
+                        </div>
+
+                        <div class="relative w-full bg-gray-200 rounded-full h-4 overflow-hidden mb-3">
+                            <div id="progressBar"
+                                class="progress-bar-animated h-4 rounded-full transition-all duration-500"
+                                style="width: 0%"></div>
+                        </div>
+                        <p id="progressText" class="text-sm text-gray-600 font-medium">Starting extraction...</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Activity Feed -->
+                        <div class="glass-card p-6">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                                Activity Feed
+                            </h4>
+                            <div id="activityLog" class="space-y-2 h-64 overflow-y-auto custom-scrollbar">
+                                <!-- Activity items -->
+                            </div>
+                        </div>
+
+                        <!-- URL Counter -->
+                        <div class="glass-card p-6">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd"
+                                        d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z"
+                                        clip-rule="evenodd" />
+                                </svg>
+                                URLs Found
+                            </h4>
+                            <div class="text-center">
+                                <div id="urlCount" class="text-6xl font-bold gradient-text mb-2">0</div>
+                                <p class="text-gray-600">Total URLs Extracted</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Extracted URLs List -->
+                    <div class="glass-card p-6 mb-6">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4">🔗 Extracted URLs</h4>
+                        <div id="urlList" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                            <div class="text-center text-gray-500 py-8">
+                                No URLs extracted yet...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div id="actionButtons" class="hidden flex justify-end space-x-4">
+                        <button onclick="resetSearch()"
+                            class="px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transform hover:scale-105 transition-all">
+                            🔄 New Search
+                        </button>
+                        <button onclick="createScanJob()" id="createScanBtn"
+                            class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all shadow-lg">
+                            ✅ Create Scan Job
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let searchJobId = null;
+    let extractedUrls = [];
+    let pollInterval = null;
+
+    // Load search history on page load
+    document.addEventListener('DOMContentLoaded', loadSearchHistory);
+
+
+    function loadSearchHistory() {
+        fetch('/google/search/history')
+            .then(response => response.json())
+            .then(data => {
+                const historyContainer = document.getElementById('searchHistory');
+
+                if (data.history && data.history.length > 0) {
+                    historyContainer.innerHTML = data.history.map(item => `
+                    <div class="history-item p-3 rounded-lg border border-gray-200 mb-2">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-purple-600">${item.total_urls_found} URLs</span>
+                            <span class="text-xs text-gray-500">${new Date(item.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <p class="text-sm text-gray-700 truncate mb-1">${item.queries[0]}</p>
+                        ${item.queries.length > 1 ? `<p class="text-xs text-gray-500 mb-2">+${item.queries.length - 1} more</p>` : '<div class="mb-2"></div>'}
+                        
+                        <div class="flex gap-2">
+                            <button onclick='loadHistoryItem(${JSON.stringify(item)}); event.stopPropagation();'
+                                class="flex-1 px-2 py-1 text-xs font-medium bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors">
+                                📝 Load
+                            </button>
+                            <button onclick='scanFromHistory(${item.id}); event.stopPropagation();'
+                                class="flex-1 px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
+                                🚀 Scan
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                } else {
+                    historyContainer.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">No history yet</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading history:', error);
+            });
+    }
+
+    function loadHistoryItem(item) {
+        document.getElementById('queries').value = item.queries.join('\n');
+        document.getElementById('num_results').value = item.num_results_per_query;
+    }
+
+    function scanFromHistory(historyId) {
+        // Show loading state
+        const btn = event.target;
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Creating...';
+
+        // Create scan job from history
+        fetch(`/google/search/history/${historyId}/scan`, {
+            method: 'POST'
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.scan_job_id) {
+                    // Redirect to scan job page
+                    window.location.href = `/scan/${data.scan_job_id}`;
+                } else if (data.error) {
+                    alert('Error: ' + data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                alert('Failed to create scan job: ' + error);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+    }
+
+    function startSearch(event) {
+        event.preventDefault();
+
+        const queries = document.getElementById('queries').value;
+        const numResults = document.getElementById('num_results').value;
+
+        document.getElementById('searchForm').classList.add('hidden');
+        document.getElementById('resultsSection').classList.remove('hidden');
+
+        extractedUrls = [];
+        updateUrlDisplay();
+        clearActivityLog();
+        addActivity('🚀 Starting Google search extraction...', 'info');
+
+        fetch('/google/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                queries: queries,
+                num_results: numResults
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.job_id) {
+                    searchJobId = data.job_id;
+                    addActivity(`✓ Search job created (ID: ${searchJobId})`, 'success');
+                    startPolling();
+                } else if (data.error) {
+                    addActivity(`✗ Error: ${data.error}`, 'error');
+                    updateStatus('Error', 'red');
+                }
+            })
+            .catch(error => {
+                addActivity(`✗ Failed to start search: ${error}`, 'error');
+                updateStatus('Error', 'red');
+            });
+    }
+
+    function startPolling() {
+        updateStatus('Running', 'blue');
+        pollInterval = setInterval(checkProgress, 2000);
+    }
+
+    function checkProgress() {
+        if (!searchJobId) return;
+
+        fetch(`/google/search/status/${searchJobId}`)
+            .then(response => response.json())
+            .then(data => {
+                updateProgress(data);
+            })
+            .catch(error => {
+                console.error('Polling error:', error);
+            });
+    }
+
+    function updateProgress(data) {
+        const progress = data.progress || 0;
+        document.getElementById('progressBar').style.width = progress + '%';
+        document.getElementById('progressText').textContent = data.message || 'Processing...';
+
+        if (data.urls && data.urls.length > extractedUrls.length) {
+            const newUrls = data.urls.slice(extractedUrls.length);
+            newUrls.forEach(url => {
+                extractedUrls.push(url);
+                addActivity(`🔗 Found: ${url}`, 'success');
+            });
+            updateUrlDisplay();
+        }
+
+        if (data.activity) {
+            data.activity.forEach(activity => {
+                addActivity(activity.message, activity.type);
+            });
+        }
+
+        if (data.status === 'completed') {
+            clearInterval(pollInterval);
+            updateStatus('Completed', 'green');
+            addActivity(`✓ Extraction complete! Found ${extractedUrls.length} URLs`, 'success');
+            document.getElementById('actionButtons').classList.remove('hidden');
+            document.getElementById('progressBar').style.width = '100%';
+            loadSearchHistory(); // Refresh history
+        } else if (data.status === 'failed') {
+            clearInterval(pollInterval);
+            updateStatus('Failed', 'red');
+            addActivity(`✗ Extraction failed: ${data.error}`, 'error');
+        }
+    }
+
+    function updateUrlDisplay() {
+        const urlList = document.getElementById('urlList');
+        const urlCount = document.getElementById('urlCount');
+
+        urlCount.textContent = extractedUrls.length;
+
+        if (extractedUrls.length === 0) {
+            urlList.innerHTML = '<div class="text-center text-gray-500 py-8">No URLs extracted yet...</div>';
+        } else {
+            urlList.innerHTML = extractedUrls.map((url, index) => `
+            <div class="url-card p-4 bg-white rounded-lg border border-gray-200 flex items-center justify-between">
+                <div class="flex items-center space-x-3 flex-1 min-w-0">
+                    <span class="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                        ${index + 1}
+                    </span>
+                    <a href="${url}" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 truncate flex-1">
+                        ${url}
+                    </a>
+                </div>
+                <svg class="h-5 w-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+            </div>
+        `).join('');
+        }
+    }
+
+    function addActivity(message, type = 'info') {
+        const log = document.getElementById('activityLog');
+        const timestamp = new Date().toLocaleTimeString();
+        const colors = {
+            info: 'bg-blue-50 text-blue-700 border-blue-200',
+            success: 'bg-green-50 text-green-700 border-green-200',
+            error: 'bg-red-50 text-red-700 border-red-200',
+            warning: 'bg-yellow-50 text-yellow-700 border-yellow-200'
+        };
+
+        const entry = document.createElement('div');
+        entry.className = `activity-item p-3 rounded-lg border ${colors[type] || colors.info}`;
+        entry.innerHTML = `
+        <div class="flex items-start">
+            <span class="text-xs font-mono mr-2">${timestamp}</span>
+            <span class="text-sm flex-1">${message}</span>
+        </div>
+    `;
+
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function clearActivityLog() {
+        document.getElementById('activityLog').innerHTML = '';
+    }
+
+    function updateStatus(text, color) {
+        const badge = document.getElementById('statusBadge');
+        const colors = {
+            blue: 'bg-blue-100 text-blue-800',
+            green: 'bg-green-100 text-green-800',
+            red: 'bg-red-100 text-red-800',
+            yellow: 'bg-yellow-100 text-yellow-800'
+        };
+
+        badge.className = `px-4 py-2 text-sm font-bold rounded-full ${colors[color] || colors.blue}`;
+        badge.textContent = text;
+
+        if (color === 'blue') {
+            badge.classList.add('pulse');
+        } else {
+            badge.classList.remove('pulse');
+        }
+    }
+
+    function resetSearch() {
+        if (pollInterval) {
+            clearInterval(pollInterval);
+        }
+
+        document.getElementById('searchForm').classList.remove('hidden');
+        document.getElementById('resultsSection').classList.add('hidden');
+        document.getElementById('actionButtons').classList.add('hidden');
+
+        searchJobId = null;
+        extractedUrls = [];
+    }
+
+    function createScanJob() {
+        if (extractedUrls.length === 0) {
+            alert('No URLs to create scan job with!');
+            return;
+        }
+
+        addActivity('📝 Creating scan job with extracted URLs...', 'info');
+        document.getElementById('createScanBtn').disabled = true;
+        document.getElementById('createScanBtn').textContent = 'Creating...';
+
+        fetch('/scan/new', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                name: `Google Search - ${new Date().toLocaleString()}`,
+                urls: extractedUrls.join('\n'),
+                threads: '3',
+                max_depth: '1'
+            })
+        })
+            .then(response => {
+                if (response.redirected) {
+                    addActivity('✓ Scan job created! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = response.url;
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                addActivity(`✗ Failed to create scan job: ${error}`, 'error');
+                document.getElementById('createScanBtn').disabled = false;
+                document.getElementById('createScanBtn').textContent = '✅ Create Scan Job';
+            });
+    }
+</script>
+{% endblock %}
